@@ -1,0 +1,885 @@
+dataset=bizacuity-tpcds:tform
+dataset_del=bizacuity-tpcds:data
+table=tform 
+resdir=/home/ec2-user/amanoj/querystreams/dmtest
+result=$resdir/rr1.txt
+bdir=/home/ec2-user/amanoj/querystreams
+bytes=$bdir/bytesall.txt
+
+s=$(date)
+
+d1=$(date)
+
+bq rm -f -t $dataset.r1_crv
+bq rm -f -t $dataset.r1_csv
+bq rm -f -t $dataset.r1_iv
+bq rm -f -t $dataset.r1_srv
+bq rm -f -t $dataset.r1_ssv 
+bq rm -f -t $dataset.r1_wrv
+bq rm -f -t $dataset.r1_wsv
+
+bq rm -f -t $dataset.r1_df_cs_cr
+bq rm -f -t $dataset.r1_df_cs
+bq rm -f -t $dataset.r1_df_ss_sr
+bq rm -f -t $dataset.r1_df_ss
+bq rm -f -t $dataset.r1_df_ws_wr
+bq rm -f -t $dataset.r1_df_ws
+bq rm -f -t $dataset.r1_df_i
+
+bq rm -f -t $dataset.r1_lf_cr_dups
+bq rm -f -t $dataset.r1_lf_cs_dups
+bq rm -f -t $dataset.r1_lf_sr_dups
+bq rm -f -t $dataset.r1_lf_ss_dups
+bq rm -f -t $dataset.r1_lf_wr_dups
+bq rm -f -t $dataset.r1_lf_ws_dups
+bq rm -f -t $dataset.r1_lf_cr_dups2
+bq rm -f -t $dataset.r1_lf_sr_dups2
+bq rm -f -t $dataset.r1_lf_wr_dups2
+d2=$(date)
+echo "removing tables completed. Time in sec.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" > $result
+
+
+d=$(date +%s)
+jobid=r1_crv_$d
+
+#1. LF_CR(Clause 5.3.11.6) -  crv
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_crv  --nouse_legacy_sql "SELECT d_date_sk cr_returned_date_sk
+ ,t_time_sk cr_returned_time_sk
+ ,i_item_sk cr_item_sk
+ ,c1.c_customer_sk cr_refunded_customer_sk
+ ,c1.c_current_cdemo_sk cr_refunded_cdemo_sk
+ ,c1.c_current_hdemo_sk cr_refunded_hdemo_sk
+ ,c1.c_current_addr_sk cr_refunded_addr_sk
+ ,c2.c_customer_sk cr_returning_customer_sk
+ ,c2.c_current_cdemo_sk cr_returning_cdemo_sk
+ ,c2.c_current_hdemo_sk cr_returning_hdemo_sk
+ ,c2.c_current_addr_sk cr_returning_addr_sk
+ ,cc_call_center_sk cr_call_center_sk
+ ,cp_catalog_page_sk cr_catalog_page_sk
+ ,sm_ship_mode_sk cr_ship_mode_sk
+ ,w_warehouse_sk cr_warehouse_sk
+ ,r_reason_sk cr_reason_sk
+ ,cret_order_id cr_order_number
+ ,cret_return_qty cr_return_quantity
+ ,cret_return_amt cr_return_amount
+ ,cret_return_tax cr_return_tax
+ ,cret_return_amt + cret_return_tax AS cr_return_amt_inc_tax
+ ,cret_return_fee cr_fee
+ ,cret_return_ship_cost cr_return_ship_cost
+ ,cret_refunded_cash cr_refunded_cash
+ ,cret_reversed_charge cr_reversed_charge
+ ,cret_merchant_credit cr_store_credit
+ ,cret_return_amt+cret_return_tax+cret_return_fee-cret_refunded_cash-cret_reversed_charge-cret_merchant_credit cr_net_loss
+FROM refresh.s_catalog_returns
+LEFT OUTER JOIN data.date_dim
+ ON (cast(cret_return_date as date) = d_date)
+LEFT OUTER JOIN data.time_dim ON
+ ((CAST(substr(cret_return_time,1,2) AS int64)*3600
+ +CAST(substr(cret_return_time,4,2) AS INT64)*60
+ +CAST(substr(cret_return_time,7,2) AS int64)) = t_time)
+LEFT OUTER JOIN data.item ON (cret_item_id = i_item_id)
+LEFT OUTER JOIN data.customer c1 ON (cret_return_customer_id = c1.c_customer_id)
+LEFT OUTER JOIN data.customer c2 ON (cret_refund_customer_id = c2.c_customer_id)
+LEFT OUTER JOIN data.reason ON (cret_reason_id = r_reason_id)
+LEFT OUTER JOIN data.call_center ON (cret_call_center_id = cc_call_center_id)
+LEFT OUTER JOIN data.catalog_page ON (cret_catalog_page_id = cp_catalog_page_id)
+LEFT OUTER JOIN data.ship_mode ON (cret_shipmode_id = sm_ship_mode_id)
+LEFT OUTER JOIN data.warehouse ON (cret_warehouse_id = w_warehouse_id)
+WHERE i_rec_end_date IS NULL AND cc_rec_end_date IS NULL;"
+d2=$(date)
+echo "creating r1_crv completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_csv_$d
+
+
+# 2.LF_CS(Clause 5.3.11.5) -csv
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_csv --nouse_legacy_sql "SELECT d1.d_date_sk cs_sold_date_sk
+ ,t_time_sk cs_sold_time_sk
+ ,d2.d_date_sk cs_ship_date_sk
+ ,c1.c_customer_sk cs_bill_customer_sk
+ ,c1.c_current_cdemo_sk cs_bill_cdemo_sk
+ ,c1.c_current_hdemo_sk cs_bill_hdemo_sk
+ ,c1.c_current_addr_sk cs_bill_addr_sk
+ ,c2.c_customer_sk cs_ship_customer_sk
+ ,c2.c_current_cdemo_sk cs_ship_cdemo_sk
+ ,c2.c_current_hdemo_sk cs_ship_hdemo_sk
+ ,c2.c_current_addr_sk cs_ship_addr_sk
+ ,cc_call_center_sk cs_call_center_sk
+ ,cp_catalog_page_sk cs_catalog_page_sk
+ ,sm_ship_mode_sk cs_ship_mode_sk
+ ,w_warehouse_sk cs_warehouse_sk
+ ,i_item_sk cs_item_sk
+ ,p_promo_sk cs_promo_sk
+ ,cord_order_id cs_order_number
+ ,clin_quantity cs_quantity
+ ,i_wholesale_cost cs_wholesale_cost
+ ,i_current_price cs_list_price
+ ,clin_sales_price cs_sales_price
+ ,(i_current_price-clin_sales_price)*clin_quantity cs_ext_discount_amt
+ ,clin_sales_price * clin_quantity cs_ext_sales_price
+ ,i_wholesale_cost * clin_quantity cs_ext_wholesale_cost
+ ,i_current_price * clin_quantity CS_EXT_LIST_PRICE
+ ,i_current_price * cc_tax_percentage CS_EXT_TAX
+ ,clin_coupon_amt cs_coupon_amt
+ ,clin_ship_cost * clin_quantity CS_EXT_SHIP_COST
+ ,(clin_sales_price * clin_quantity)-clin_coupon_amt cs_net_paid
+ ,((clin_sales_price * clin_quantity)-clin_coupon_amt)*(1+cc_tax_percentage) cs_net_paid_inc_tax
+ ,(clin_sales_price * clin_quantity)-clin_coupon_amt + (clin_ship_cost * clin_quantity) CS_NET_PAID_INC_SHIP
+ ,(clin_sales_price * clin_quantity)-clin_coupon_amt + (clin_ship_cost * clin_quantity) + i_current_price * cc_tax_percentage CS_NET_PAID_INC_SHIP_TAX
+ ,((clin_sales_price * clin_quantity)-clin_coupon_amt)-(clin_quantity*i_wholesale_cost) cs_net_profit
+FROM refresh.s_catalog_order
+LEFT OUTER JOIN data.date_dim d1 ON
+ (cast(cord_order_date as date) = d1.d_date)
+LEFT OUTER JOIN data.time_dim ON (cord_order_time = t_time)
+LEFT OUTER JOIN data.customer c1 ON (cord_bill_customer_id = c1.c_customer_id)
+LEFT OUTER JOIN data.customer c2 ON (cord_ship_customer_id = c2.c_customer_id)
+LEFT OUTER JOIN data.call_center ON (cord_call_center_id = cc_call_center_id AND cc_rec_end_date IS NULL)
+LEFT OUTER JOIN data.ship_mode ON (cord_ship_mode_id = sm_ship_mode_id)
+JOIN refresh.s_catalog_order_lineitem ON (cord_order_id = clin_order_id)
+LEFT OUTER JOIN data.date_dim d2 ON
+ (cast(clin_ship_date as date) = d2.d_date)
+LEFT OUTER JOIN data.catalog_page ON
+ (clin_catalog_page_number = cp_catalog_page_number and clin_catalog_number = cp_catalog_number)
+LEFT OUTER JOIN data.warehouse ON (clin_warehouse_id = w_warehouse_id)
+LEFT OUTER JOIN data.item ON (clin_item_id = i_item_id AND i_rec_end_date IS NULL)
+LEFT OUTER JOIN data.promotion ON (clin_promotion_id = p_promo_id);
+"
+d2=$(date)
+echo "creating r1_csv completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_iv_$d
+
+# iv
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_iv --nouse_legacy_sql "SELECT d_date_sk inv_date_sk,
+ i_item_sk inv_item_sk,
+ w_warehouse_sk inv_warehouse_sk,
+ invn_qty_on_hand inv_quantity_on_hand
+FROM refresh.s_inventory
+LEFT OUTER JOIN data.warehouse ON (invn_warehouse_id=w_warehouse_id)
+LEFT OUTER JOIN data.item ON (invn_item_id=i_item_id AND i_rec_end_date IS NULL)
+LEFT OUTER JOIN data.date_dim ON (d_date=invn_date);"
+d2=$(date)
+
+echo "creating r1_iv completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_srv_$d
+
+# srv
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_srv --nouse_legacy_sql "SELECT d_date_sk sr_returned_date_sk
+ ,t_time_sk sr_return_time_sk
+ ,i_item_sk sr_item_sk
+ ,c_customer_sk sr_customer_sk
+ ,c_current_cdemo_sk sr_cdemo_sk
+ ,c_current_hdemo_sk sr_hdemo_sk
+ ,c_current_addr_sk sr_addr_sk
+ ,s_store_sk sr_store_sk
+ ,r_reason_sk sr_reason_sk
+ ,sret_ticket_number sr_ticket_number
+ ,sret_return_qty sr_return_quantity
+ ,sret_return_amt sr_return_amt
+ ,sret_return_tax sr_return_tax
+ ,sret_return_amt + sret_return_tax sr_return_amt_inc_tax
+ ,sret_return_fee sr_fee
+ ,sret_return_ship_cost sr_return_ship_cost
+ ,sret_refunded_cash sr_refunded_cash
+ ,sret_reversed_charge sr_reversed_charge
+ ,sret_store_credit sr_store_credit
+ ,sret_return_amt+sret_return_tax+sret_return_fee-sret_refunded_cash-sret_reversed_charge-sret_store_credit sr_net_loss
+FROM refresh.s_store_returns
+LEFT OUTER JOIN data.date_dim
+ ON (cast(sret_return_date as date) = d_date)
+LEFT OUTER JOIN data.time_dim
+ ON (( cast(substr(sret_return_time,1,2) as int64)*3600
+ +cast(substr(sret_return_time,4,2) AS int64)*60
+ +cast(substr(sret_return_time,7,2) AS int64)) = t_time)
+LEFT OUTER JOIN data.item ON (sret_item_id = i_item_id)
+LEFT OUTER JOIN data.customer ON (sret_customer_id = c_customer_id)
+LEFT OUTER JOIN data.store ON (sret_store_id = s_store_id)
+LEFT OUTER JOIN data.reason ON (sret_reason_id = r_reason_id)
+WHERE i_rec_end_date IS NULL
+ AND s_rec_end_date IS NULL;"
+
+d2=$(date)
+echo "creating r1_srv completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_ssv_$d
+
+#ssv 
+d1=$(date)
+
+ bq query --job_id=$jobid --destination_table $dataset.r1_ssv --nouse_legacy_sql "SELECT d_date_sk ss_sold_date_sk,
+ t_time_sk ss_sold_time_sk,
+ i_item_sk ss_item_sk,
+ c_customer_sk ss_customer_sk,
+ c_current_cdemo_sk ss_cdemo_sk,
+ c_current_hdemo_sk ss_hdemo_sk,
+ c_current_addr_sk ss_addr_sk,
+ s_store_sk ss_store_sk,
+ p_promo_sk ss_promo_sk,
+ purc_purchase_id ss_ticket_number,
+ plin_quantity ss_quantity,
+ i_wholesale_cost ss_wholesale_cost,
+ i_current_price ss_list_price,
+ plin_sale_price ss_sales_price,
+ (i_current_price-plin_sale_price)*plin_quantity ss_ext_discount_amt,
+ plin_sale_price * plin_quantity ss_ext_sales_price,
+ i_wholesale_cost * plin_quantity ss_ext_wholesale_cost,
+ i_current_price * plin_quantity ss_ext_list_price,
+ i_current_price * s_tax_precentage ss_ext_tax,
+ plin_coupon_amt ss_coupon_amt,
+ (plin_sale_price * plin_quantity)-plin_coupon_amt ss_net_paid,
+ ((plin_sale_price * plin_quantity)-plin_coupon_amt)*(1+s_tax_precentage) ss_net_paid_inc_tax,
+ ((plin_sale_price * plin_quantity)-plin_coupon_amt)-(plin_quantity*i_wholesale_cost) ss_net_profit
+FROM refresh.s_purchase
+LEFT OUTER JOIN data.customer ON (purc_customer_id = c_customer_id)
+LEFT OUTER JOIN data.store ON (purc_store_id = s_store_id)
+LEFT OUTER JOIN data.date_dim ON (cast(purc_purchase_date as date) = d_date)
+LEFT OUTER JOIN data.time_dim ON (PURC_PURCHASE_TIME = t_time)
+JOIN refresh.s_purchase_lineitem ON (purc_purchase_id = plin_purchase_id)
+LEFT OUTER JOIN data.promotion ON plin_promotion_id = p_promo_id
+LEFT OUTER JOIN data.item ON plin_item_id = i_item_id
+WHERE purc_purchase_id = plin_purchase_id
+ AND i_rec_end_date is NULL
+ AND s_rec_end_date is NULL;
+"
+d2=$(date)
+echo "creating r1_ssv completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_wrv_$d
+
+#wrv 
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_wrv --nouse_legacy_sql "SELECT d_date_sk wr_returned_date_sk
+ ,t_time_sk wr_returned_time_sk
+ ,i_item_sk wr_item_sk
+ ,c1.c_customer_sk wr_refunded_customer_sk
+ ,c1.c_current_cdemo_sk wr_refunded_cdemo_sk
+ ,c1.c_current_hdemo_sk wr_refunded_hdemo_sk
+ ,c1.c_current_addr_sk wr_refunded_addr_sk
+ ,c2.c_customer_sk wr_returning_customer_sk
+ ,c2.c_current_cdemo_sk wr_returning_cdemo_sk
+ ,c2.c_current_hdemo_sk wr_returning_hdemo_sk
+ ,c2.c_current_addr_sk wr_returning_addr_sk
+ ,wp_web_page_sk wr_web_page_sk
+ ,r_reason_sk wr_reason_sk
+ ,wret_order_id wr_order_number
+ ,wret_return_qty wr_return_quantity
+ ,wret_return_amt wr_return_amt
+ ,wret_return_tax wr_return_tax
+ ,wret_return_amt + wret_return_tax AS wr_return_amt_inc_tax
+ ,wret_return_fee wr_fee
+ ,wret_return_ship_cost wr_return_ship_cost
+ ,wret_refunded_cash wr_refunded_cash
+ ,wret_reversed_charge wr_reversed_charge
+ ,wret_account_credit wr_account_credit
+ ,wret_return_amt+wret_return_tax+wret_return_fee-wret_refunded_cash-wret_reversed_charge-wret_account_credit wr_net_loss
+FROM refresh.s_web_returns 
+LEFT OUTER JOIN data.date_dim ON (cast(wret_return_date as date) = d_date)
+LEFT OUTER JOIN data.time_dim ON ((CAST(SUBSTR(wret_return_time,1,2) AS int64)*3600
++CAST(SUBSTR(wret_return_time,4,2) AS INT64)*60+CAST(SUBSTR(wret_return_time,7,2) AS INT64))=t_time)
+LEFT OUTER JOIN data.item ON (wret_item_id = i_item_id)
+LEFT OUTER JOIN data.customer c1 ON (wret_return_customer_id = c1.c_customer_id)
+LEFT OUTER JOIN data.customer c2 ON (wret_refund_customer_id = c2.c_customer_id)
+LEFT OUTER JOIN data.reason ON (wret_reason_id = r_reason_id)
+LEFT OUTER JOIN data.web_page ON (wret_web_page_id = WP_WEB_PAGE_id)
+WHERE i_rec_end_date IS NULL AND wp_rec_end_date IS NULL;
+"
+d2=$(date)
+echo "creating r1_wrv completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_wsv_$d
+
+#wsv
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_wsv --nouse_legacy_sql "SELECT d1.d_date_sk ws_sold_date_sk,
+ t_time_sk ws_sold_time_sk,
+ d2.d_date_sk ws_ship_date_sk,
+ i_item_sk ws_item_sk,
+ c1.c_customer_sk ws_bill_customer_sk,
+ c1.c_current_cdemo_sk ws_bill_cdemo_sk,
+ c1.c_current_hdemo_sk ws_bill_hdemo_sk,
+ c1.c_current_addr_sk ws_bill_addr_sk,
+ c2.c_customer_sk ws_ship_customer_sk,
+ c2.c_current_cdemo_sk ws_ship_cdemo_sk,
+ c2.c_current_hdemo_sk ws_ship_hdemo_sk,
+ c2.c_current_addr_sk ws_ship_addr_sk,
+ wp_web_page_sk ws_web_page_sk,
+ web_site_sk ws_web_site_sk,
+ sm_ship_mode_sk ws_ship_mode_sk,
+ w_warehouse_sk ws_warehouse_sk,
+ p_promo_sk ws_promo_sk,
+ word_order_id ws_order_number,
+ wlin_quantity ws_quantity,
+ i_wholesale_cost ws_wholesale_cost,
+ i_current_price ws_list_price,
+ wlin_sales_price ws_sales_price,
+ (i_current_price-wlin_sales_price)*wlin_quantity ws_ext_discount_amt,
+ wlin_sales_price * wlin_quantity ws_ext_sales_price,
+ i_wholesale_cost * wlin_quantity ws_ext_wholesale_cost,
+ i_current_price * wlin_quantity ws_ext_list_price,
+ i_current_price * web_tax_percentage ws_ext_tax,
+ wlin_coupon_amt ws_coupon_amt,
+ wlin_ship_cost * wlin_quantity WS_EXT_SHIP_COST,
+ (wlin_sales_price * wlin_quantity)-wlin_coupon_amt ws_net_paid,
+ ((wlin_sales_price * wlin_quantity)-wlin_coupon_amt)*(1+web_tax_percentage) ws_net_paid_inc_tax,
+ ((wlin_sales_price * wlin_quantity)-wlin_coupon_amt)-(wlin_quantity*i_wholesale_cost) WS_NET_PAID_INC_SHIP,
+ (wlin_sales_price * wlin_quantity)-wlin_coupon_amt + (wlin_ship_cost * wlin_quantity) + i_current_price * web_tax_percentage WS_NET_PAID_INC_SHIP_TAX,
+ ((wlin_sales_price * wlin_quantity)-wlin_coupon_amt)-(i_wholesale_cost * wlin_quantity) WS_NET_PROFIT
+FROM refresh.s_web_order
+LEFT OUTER JOIN data.date_dim d1 ON (cast(word_order_date as date) = d1.d_date)
+LEFT OUTER JOIN data.time_dim ON (word_order_time = t_time)
+LEFT OUTER JOIN data.customer c1 ON (word_bill_customer_id = c1.c_customer_id)
+LEFT OUTER JOIN data.customer c2 ON (word_ship_customer_id = c2.c_customer_id)
+LEFT OUTER JOIN data.web_site ON (word_web_site_id = web_site_id AND web_rec_end_date IS NULL)
+LEFT OUTER JOIN data.ship_mode ON (word_ship_mode_id = sm_ship_mode_id)
+JOIN refresh.s_web_order_lineitem ON (word_order_id = wlin_order_id)
+LEFT OUTER JOIN data.date_dim d2 ON (cast(wlin_ship_date as date) = d2.d_date)
+LEFT OUTER JOIN data.item ON (wlin_item_id = i_item_id AND i_rec_end_date IS NULL)
+LEFT OUTER JOIN data.web_page ON (wlin_web_page_id = wp_web_page_id AND wp_rec_end_date IS NULL)
+LEFT OUTER JOIN data.warehouse ON (wlin_warehouse_id = w_warehouse_id)
+LEFT OUTER JOIN data.promotion ON (wlin_promotion_id = p_promo_id);
+"
+d2=$(date)
+echo "creating r1_wsv completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_df_cs_cr_$d
+
+# 8. DF_CS(Clause 5.3.11.10) -- catalog_sales [S], catalog_returns [R]
+#test.r1_df_cs_cr
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_df_cs_cr --nouse_legacy_sql  "SELECT cr.cr_item_sk,cr.cr_order_number
+FROM data.catalog_returns cr
+  JOIN data.catalog_sales cs
+    ON cs_item_sk = cr_item_sk
+   AND cs_order_number = cr_order_number
+  JOIN data.date_dim ON cs_sold_date_sk = d_date_sk
+WHERE d_date BETWEEN cast('2000-05-20' as date) AND cast('2000-05-21' as date)
+OR d_date BETWEEN cast('1999-09-18' as date) AND cast('1999-09-19' as date)
+OR d_date BETWEEN cast('2002-11-12' as date) AND cast('2002-11-13' as date);
+"
+d2=$(date)
+echo "creating r1_df_cs_cr completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_df_cs_$d
+ 
+#test.r1_df_cs
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_df_cs --nouse_legacy_sql "SELECT cs.cs_item_sk,cs.cs_order_number
+FROM data.catalog_sales cs
+  JOIN data.date_dim ON cs_sold_date_sk = d_date_sk
+WHERE d_date BETWEEN cast('2000-05-20' as date) AND cast('2000-05-21' as date)
+OR d_date BETWEEN cast('1999-09-18' as date) AND cast('1999-09-19' as date)
+OR d_date BETWEEN cast('2002-11-12' as date) AND cast('2002-11-13' as date);"
+d2=$(date)
+echo "creating r1_df_cs completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_df_cs_cr_$d
+
+#delete
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from catalog_returns 
+where (cr_item_sk,cr_order_number) in (
+SELECT (cr_item_sk,cr_order_number) 
+FROM $table.r1_df_cs_cr)"
+d2=$(date)
+echo "delete from cr completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_df_cs_$d
+
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from catalog_sales 
+where (cs_item_sk,cs_order_number) in (
+SELECT (cs_item_sk,cs_order_number)
+FROM $table.r1_df_cs)"
+
+d2=$(date)
+echo "delete from cs completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_df_ss_sr_$d
+
+#9. DF_SS(Clause 5.3.11.9)
+
+#test.r1_df_ss_sr
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_df_ss_sr --nouse_legacy_sql  "SELECT sr.sr_item_sk,sr.sr_ticket_number
+FROM data.store_returns sr
+  JOIN data.store_sales ss
+    ON ss_item_sk = sr_item_sk
+   AND ss_ticket_number = sr_ticket_number
+  JOIN data.date_dim ON ss_sold_date_sk = d_date_sk
+WHERE d_date BETWEEN cast('2000-05-20' as date) AND cast('2000-05-21' as date)
+OR d_date BETWEEN cast('2002-11-12' as date) AND cast('2002-11-13' as date)
+OR d_date BETWEEN cast('1999-09-18' as date) AND cast('1999-09-19' as date);"
+
+d2=$(date)
+echo "creating r1_df_ss_sr completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_df_ss_$d
+
+#test.r1_df_ss
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_df_ss --nouse_legacy_sql "SELECT ss.ss_item_sk,ss.ss_ticket_number
+FROM data.store_sales ss
+  JOIN data.date_dim ON ss_sold_date_sk = d_date_sk
+WHERE d_date BETWEEN cast('2000-05-20' as date) AND cast('2000-05-21' as date)
+OR d_date BETWEEN cast('2002-11-12' as date) AND cast('2002-11-13' as date)
+OR d_date BETWEEN cast('1999-09-18' as date) AND cast('1999-09-19' as date);"
+d2=$(date)
+echo "creating r1_df_cs completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_df_ss_sr_$d
+
+#delete
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from store_returns 
+where (sr_item_sk,sr_ticket_number) in (
+SELECT (sr_item_sk,sr_ticket_number)
+FROM $table.r1_df_ss_sr)"
+d2=$(date)
+echo "deleting from sr completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_df_ss_$d
+
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from store_sales 
+where (ss_item_sk,ss_ticket_number) in (
+SELECT (ss_item_sk,ss_ticket_number)
+FROM $table.r1_df_ss)"
+
+d2=$(date)
+echo "delete from ss completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_df_ws_wr_$d
+
+#10.DF_WS(Clause 5.3.11.11)
+
+#test.r1_df_ws_wr
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_df_ws_wr --nouse_legacy_sql "SELECT wr.wr_item_sk,wr.wr_order_number
+FROM data.web_returns wr
+  JOIN data.web_sales ws
+    ON ws_item_sk = wr_item_sk
+   AND ws_order_number = wr_order_number
+  JOIN data.date_dim ON ws_sold_date_sk = d_date_sk
+WHERE d_date BETWEEN cast('2000-05-20' as date) AND cast('2000-05-21' as date) 
+OR d_date BETWEEN cast('1999-09-18' as date) AND cast('1999-09-19' as date)
+OR d_date BETWEEN cast('2002-11-12' as date) AND cast('2002-11-13' as date);"
+
+d2=$(date)
+echo "creating r1_df_ws_wr completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_df_ws_$d
+
+#test.r1_df_ws
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_df_ws --nouse_legacy_sql "SELECT ws.ws_item_sk,ws.ws_order_number
+FROM data.web_sales ws
+  JOIN data.date_dim ON ws_sold_date_sk = d_date_sk
+WHERE d_date BETWEEN cast('2000-05-20' as date) AND cast('2000-05-21' as date)
+OR d_date BETWEEN cast('1999-09-18' as date) AND cast('1999-09-19' as date)
+OR d_date BETWEEN cast('2002-11-12' as date) AND cast('2002-11-13' as date);"
+d2=$(date)
+
+echo "creating r1_df_ws completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_df_ws_wr_$d
+
+#delete 
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from web_returns 
+where (wr_item_sk,wr_order_number) in (
+SELECT (wr_item_sk,wr_order_number)
+FROM $table.r1_df_ws_wr)"
+d2=$(date)
+echo "delete from wr completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_df_ws_$d
+
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from web_sales 
+where (ws_item_sk,ws_order_number) in (
+SELECT (ws_item_sk,ws_order_number)
+FROM $table.r1_df_ws)"
+d2=$(date)
+echo "delete from ws completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_df_i_$d
+
+#DF_I(Clause 5.3.11.12)
+d1=$(date)
+
+bq query --job_id=$jobid --destination_table $dataset.r1_df_i --nouse_legacy_sql "SELECT i.inv_date_sk,i.inv_item_sk,i.inv_warehouse_sk
+FROM data.inventory i
+  JOIN data.date_dim ON inv_date_sk = d_date_sk
+WHERE d_date BETWEEN cast('2000-05-18' as date) AND cast('2000-05-25' as date)
+OR d_date BETWEEN cast('1999-09-16' as date) AND cast('1999-09-23' as date)
+OR d_date BETWEEN cast('2002-11-14' as date) AND cast('2002-11-21' as date);"
+d2=$(date)
+
+echo "creatinr r1_df_i completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_df_i_$d
+
+#delete
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del "delete  from inventory 
+where (inv_date_sk,inv_item_sk,inv_warehouse_sk) in (
+SELECT (inv_date_sk,inv_item_sk,inv_warehouse_sk)
+FROM $table.r1_df_i)"
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_lf_cr_dups_$d
+
+d2=$(date)
+echo "delete from inv completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+#duplicates
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --destination_table $dataset.r1_lf_cr_dups "SELECT cr.cr_item_sk,cr.cr_order_number
+FROM data.catalog_returns cr
+  JOIN data.catalog_sales cs
+    ON cs_item_sk = cr_item_sk
+   AND cs_order_number = cr_order_number
+  JOIN $table.r1_csv csv
+    ON cs.cs_item_sk = csv.cs_item_sk
+   AND cs.cs_order_number = csv.cs_order_number;"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_lf_sr_dups_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --destination_table $dataset.r1_lf_sr_dups "SELECT sr.sr_item_sk,sr.sr_ticket_number
+FROM data.store_returns sr
+  JOIN data.store_sales ss
+    ON ss_item_sk = sr_item_sk
+   AND ss_ticket_number = sr_ticket_number
+  JOIN $table.r1_ssv ssv
+    ON ss.ss_item_sk = ssv.ss_item_sk
+   AND ss.ss_ticket_number = ssv.ss_ticket_number;"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_lf_wr_dups_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --destination_table $dataset.r1_lf_wr_dups "SELECT wr.wr_item_sk,wr.wr_order_number
+FROM data.web_returns wr
+  JOIN data.web_sales ws
+    ON ws_item_sk = wr_item_sk
+   AND ws_order_number = wr_order_number
+  JOIN $table.r1_wsv wsv
+    ON ws.ws_item_sk = wsv.ws_item_sk
+   AND ws.ws_order_number = wsv.ws_order_number;"
+d2=$(date)
+echo "creating returns completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_lf_cs_dups_$d
+
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --destination_table $dataset.r1_lf_cs_dups  "SELECT cs.cs_item_sk,cs.cs_order_number
+FROM  data.catalog_sales cs
+  JOIN $table.r1_csv csv
+    ON cs.cs_item_sk = csv.cs_item_sk
+   AND cs.cs_order_number = csv.cs_order_number;"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_lf_ss_dups_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --destination_table $dataset.r1_lf_ss_dups "SELECT ss.ss_item_sk,ss.ss_ticket_number
+FROM  data.store_sales ss
+  JOIN $table.r1_ssv ssv
+    ON ss.ss_item_sk = ssv.ss_item_sk
+   AND ss.ss_ticket_number = ssv.ss_ticket_number;"
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_lf_ws_dups_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --destination_table $dataset.r1_lf_ws_dups "SELECT ws.ws_item_sk,ws.ws_order_number
+FROM  data.web_sales ws
+  JOIN $table.r1_wsv wsv
+    ON ws.ws_item_sk = wsv.ws_item_sk
+   AND ws.ws_order_number = wsv.ws_order_number;"
+d2=$(date)
+echo "creating sales dups completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_lf_cr_dups_$d
+
+#delete 
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from catalog_returns 
+where (cr_item_sk,cr_order_number) in (
+SELECT (cr_item_sk,cr_order_number) 
+FROM $table.r1_lf_cr_dups)"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_lf_sr_dups_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from store_returns 
+where (sr_item_sk,sr_ticket_number) in (
+SELECT (sr_item_sk,sr_ticket_number)
+FROM $table.r1_lf_sr_dups)"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_lf_wr_dups_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from web_returns 
+where (wr_item_sk,wr_order_number) in (
+SELECT (wr_item_sk,wr_order_number)
+FROM $table.r1_lf_wr_dups)" 
+
+d2=$(date)
+echo "del dup from 3 returns completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_lf_cs_dups_$d
+
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from catalog_sales 
+where (cs_item_sk,cs_order_number) in (
+SELECT (cs_item_sk,cs_order_number)
+FROM $table.r1_lf_cs_dups)"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_lf_ss_dups_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from store_sales 
+where (ss_item_sk,ss_ticket_number) in (
+SELECT (ss_item_sk,ss_ticket_number)
+FROM $table.r1_lf_ss_dups)"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_lf_ws_dups_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from web_sales 
+where (ws_item_sk,ws_order_number) in (
+SELECT (ws_item_sk,ws_order_number)
+FROM $table.r1_lf_ws_dups)"
+
+d2=$(date)
+echo "del dup from 3 sales completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_lf_cr_dups2_$d
+
+#duplicates2
+
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --destination_table $dataset.r1_lf_cr_dups2 "SELECT cr.cr_item_sk,cr.cr_order_number
+FROM catalog_returns cr
+JOIN $table.r1_crv crv
+on cr.cr_item_sk = crv.cr_item_sk 
+and cr.cr_order_number = crv.cr_order_number"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_lf_sr_dups2_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --destination_table $dataset.r1_lf_sr_dups2 "SELECT sr.sr_item_sk,sr.sr_ticket_number
+FROM store_returns sr
+JOIN $table.r1_srv srv
+on sr.sr_item_sk = srv.sr_item_sk 
+and sr.sr_ticket_number = cast (srv.sr_ticket_number as int64)"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=r1_lf_wr_dups2_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --destination_table $dataset.r1_lf_wr_dups2 "SELECT wr.wr_item_sk,wr.wr_order_number
+FROM web_returns wr
+JOIN $table.r1_wrv wrv
+on wr.wr_item_sk = wrv.wr_item_sk 
+and wr.wr_order_number = wrv.wr_order_number"
+
+d2=$(date)
+echo "create dups2 of 3 returns completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_lf_cr_dups2_$d
+
+#delete
+d1=$(date)
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from catalog_returns 
+where (cr_item_sk,cr_order_number) in (
+SELECT (cr_item_sk,cr_order_number) 
+FROM $table.r1_lf_cr_dups2)"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_lf_sr_dups2_$d
+
+#note
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from store_returns 
+where (sr_item_sk,sr_ticket_number) in (
+SELECT (sr_item_sk,sr_ticket_number)
+FROM $table.r1_lf_sr_dups2)"
+
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=del_r1_lf_wr_dups2_$d
+
+bq query --job_id=$jobid --nouse_legacy_sql --dataset_id=$dataset_del  "delete  from web_returns 
+where (wr_item_sk,wr_order_number) in (
+SELECT (wr_item_sk,wr_order_number)
+FROM $table.r1_lf_wr_dups2 )"
+
+d2=$(date)
+echo "del dups2 from 3 returns completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=ins_r1_ss_$d
+
+#insert 
+d1=$(date)
+
+bq query  --job_id=$jobid --append_table --destination_table $dataset_del.store_sales  --nouse_legacy_sql "select ss_sold_date_sk, ss_sold_time_sk, ss_item_sk, ss_customer_sk, ss_cdemo_sk, ss_hdemo_sk, ss_addr_sk, ss_store_sk, ss_promo_sk, cast(ss_ticket_number as int64) ss_ticket_number, ss_quantity, ss_wholesale_cost, ss_list_price, ss_sales_price, ss_ext_discount_amt, ss_ext_sales_price, ss_ext_wholesale_cost, ss_ext_list_price, ss_ext_tax, ss_coupon_amt, ss_net_paid, ss_net_paid_inc_tax, ss_net_profit from $table.r1_ssv"
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=ins_r1_sr_$d
+
+bq query  --job_id=$jobid --append_table --destination_table $dataset_del.store_returns  --nouse_legacy_sql "select sr_returned_date_sk, sr_return_time_sk, sr_item_sk, sr_customer_sk, sr_cdemo_sk, sr_hdemo_sk, sr_addr_sk, sr_store_sk, sr_reason_sk, cast(sr_ticket_number as int64) sr_ticket_number, sr_return_quantity, sr_return_amt, sr_return_tax, sr_return_amt_inc_tax, sr_fee, sr_return_ship_cost, sr_refunded_cash, sr_reversed_charge, sr_store_credit, sr_net_loss from $table.r1_srv"
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=ins_r1_cs_$d
+
+bq query --job_id=$jobid  --append_table --destination_table $dataset_del.catalog_sales  --nouse_legacy_sql "select * from $table.r1_csv"
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=ins_r1_cr_$d
+
+bq query --job_id=$jobid  --append_table --destination_table $dataset_del.catalog_returns --nouse_legacy_sql "select * from $table.r1_crv"
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=ins_r1_ws_$d
+
+bq query --job_id=$jobid  --append_table --destination_table $dataset_del.web_sales  --nouse_legacy_sql "select ws_sold_date_sk, ws_sold_time_sk, ws_ship_date_sk, ws_item_sk, ws_bill_customer_sk, ws_bill_cdemo_sk, ws_bill_hdemo_sk, ws_bill_addr_sk, ws_ship_customer_sk, ws_ship_cdemo_sk, ws_ship_hdemo_sk, ws_ship_addr_sk, ws_web_page_sk, ws_web_site_sk, ws_ship_mode_sk, ws_warehouse_sk, ws_promo_sk, cast(ws_order_number as int64) as ws_order_number, ws_quantity, ws_wholesale_cost, ws_list_price, ws_sales_price, ws_ext_discount_amt, ws_ext_sales_price, ws_ext_wholesale_cost, ws_ext_list_price, ws_ext_tax, ws_coupon_amt, WS_EXT_SHIP_COST, ws_net_paid, ws_net_paid_inc_tax, WS_NET_PAID_INC_SHIP, WS_NET_PAID_INC_SHIP_TAX, WS_NET_PROFIT from $table.r1_wsv"
+bq show -j $jobid >> $bytes
+
+d=$(date +%s)
+jobid=ins_r1_wr_$d
+
+bq query --job_id=$jobid  --append_table --destination_table $dataset_del.web_returns  --nouse_legacy_sql "select * from $table.r1_wrv"
+d2=$(date)
+ 
+echo "insert into 6 tables completed. Time in seconds.  $((($(date -d "$d2" +%s) - $(date -d "$d1" +%s))))" >> $result
+bq show -j $jobid >> $bytes
+e=$(date)
+echo "rr1 completed. Time in seconds.  $((($(date -d "$e" +%s) - $(date -d "$s" +%s))))" >> $result
